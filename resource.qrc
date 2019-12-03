@@ -1,0 +1,23 @@
+<RCC version="1.0">
+    <qresource prefix="/">
+        <file>resource/connManager.png</file>
+        <file>resource/disConnect.png</file>
+        <file>resource/reConnect.png</file>
+        <file>resource/reFresh.png</file>
+        <file>resource/add.png</file>
+        <file>resource/del.png</file>
+        <file>resource/edit.png</file>
+        <file>resource/save.png</file>
+        <file>resource/database_item.png</file>
+        <file>resource/arrowBottom.png</file>
+        <file>resource/radioButton.png</file>
+        <file>resource/radioButtonHover.png</file>
+        <file>resource/radioButtonPressed.png</file>
+        <file>resource/rightButton.png</file>
+        <file>resource/radioButtonChecked.png</file>
+        <file>resource/radioButtonCheckedHover.png</file>
+        <file>resource/radioButtonCheckedPressed.png</file>
+        <file>resource/title.ico</file>
+        <file>resource/pre.qss</file>
+    </qresource>
+</RCC>
