@@ -8,7 +8,7 @@
 
 from sqlite3 import *
 import re
-from define import SQLITE3_DB_NAME
+from comm import SQLITE3_DB_NAME
 
 
 class MySqlite3(object):
@@ -23,13 +23,14 @@ class MySqlite3(object):
         else:
             self.filename = filename
 
-    def opendb(self):
+    def openDb(self):
         try:
             self.conn = connect(self.filename)
         except Exception as e:
+            # todo: 弹框提示打开本地数据库失败
             print (e)
 
-    def isopen(self):
+    def isOpen(self):
         if self.conn is not None:
             return True
         else:
@@ -87,27 +88,13 @@ class MySqlite3(object):
         return records
 
     def commit(self):
-        if self.isopen():
+        if self.isOpen():
             self.conn.commit()
         else:
-            print ('数据库未打开')
+            print ('db not open')
 
     def closedb(self):
-        if self.isopen():
+        if self.isOpen():
             self.conn.close()
         else:
-            print ('数据库未打开')
-
-
-
-if __name__ == '__main__':
-    mc = MySqlite3()
-    mc.opendb()
-    # # mc.isopen()
-    # # mc.exec_script('init.sql')
-    # mc.exec_statement('insert into programinfo(pname,driver,scriptdir) VALUES ("非法集资","oracle","/Users/xhzhang/test_script/init_ffjz")')
-    # mc.exec_statement('insert into schemainfo(sname,host,port,servicename) VALUES ("41-DG1","192.168.1.41",1521,"DG1")')
-    r = mc.exec_select('select * from test;')
-    print (str(r[0][0]))
-    mc.closedb()
-
+            print ('db not open')

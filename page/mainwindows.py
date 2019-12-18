@@ -16,11 +16,13 @@ from PyQt5.QtWidgets import *
 
 from driver.OracleDriver import MyOracle
 from driver.Sqlite3Driver import MySqlite3
-from general import *
-from schemaoper import ConnThread, InitThread, UpgradeThread, CloseThread, DropThread
-from sourceconfig import SourceWindow
-import resource
+from driver.MySQLDriver import MyMySql
+from comm import *
+from page.schemaoper import ConnThread, InitThread, UpgradeThread, CloseThread, DropThread
+from page.manager import SourceWindow
 
+
+myLog = logging.getLogger('dbtool')
 
 class MyWidget(QWidget):
     """对QWidget类重写，实现一些功能"""
@@ -39,12 +41,12 @@ class MyWidget(QWidget):
         #     event.ignore()
         self.close_signal.emit()
 
-
+# 初始化确认弹出框
 class initDialog(QDialog):
     """
     初始化schema确认对话框
     """
-    iscontrol = pyqtSignal(int)
+    isControl = pyqtSignal(int)
 
     def __init__(self):
         super(initDialog, self).__init__()
@@ -81,13 +83,13 @@ class initDialog(QDialog):
             flag = 1
         else:
             flag = 0
-        self.iscontrol.emit(flag)
+        self.isControl.emit(flag)
         self.close()
 
     def _handleClose(self):
         self.close()
 
-
+# 升级确认弹出框
 class upgradeDialog(QDialog):
     """
     升级schema弹出的对话框
@@ -100,7 +102,7 @@ class upgradeDialog(QDialog):
         self.setFixedSize(800, 400)
         self.setWindowTitle('升级确认')
         self.patchname = patchname
-        self.iscontrol = iscontrol
+        self.isControl = iscontrol
         self.psdir = psdir
         self.SetupUI()
         self.SetDeaultData()
@@ -120,7 +122,7 @@ class upgradeDialog(QDialog):
         hbox1.addStretch()
 
         vbox1 = QVBoxLayout()
-        if self.iscontrol == 0:
+        if self.isControl == 0:
             self.attention = QLabel('当前schema无版本控制，只执行该脚本，请确认')
             vbox1.addWidget(self.attention)
         else:
@@ -165,7 +167,7 @@ class upgradeDialog(QDialog):
               0=>升级到该patch版本
         :return:
         """
-        if self.iscontrol == 0:
+        if self.isControl == 0:
             flag = 1
         else:
             if self.radio1.isChecked():
@@ -179,7 +181,7 @@ class upgradeDialog(QDialog):
         # self.upgrade.emit(-1)
         self.close()
 
-
+# 主窗口
 class uimain(QMainWindow):
     moconn = None
     mysqlite = None
@@ -189,17 +191,17 @@ class uimain(QMainWindow):
     def __init__(self):
         self.mylog = logging.getLogger('myapp')
         self.mysqlite = MySqlite3()
-        self.mysqlite.opendb()
-        if self.mysqlite.isopen():
+        self.mysqlite.openDb()
+        if self.mysqlite.isOpen():
             super(uimain, self).__init__()
             self.setupUI(self)
         else:
-            self.mylog.error('sqlite3数据库打开失败')
+            self.mylog.error('open sqlite3 db failed')
 
     def setupUI(self, uimain):
         uimain.setObjectName("MainWindow")
         uimain.resize(1200, 700)
-        uimain.setWindowTitle('DBTool')
+        uimain.setWindowTitle('DBTool ' + DBMS_Version)
         uimain.setWindowIcon(QIcon(':/resource/title.ico'))
         # 将窗口移动到屏幕中心
         qr = uimain.frameGeometry()
@@ -241,11 +243,9 @@ class uimain(QMainWindow):
         设置工具栏
         :return:
         """
-        toolbar1 = self.addToolBar("bar1")
-        toolbar1.addAction(
-            QAction(QIcon(":/resource/connManager.png"), "连接管理器", self, triggered=self._handleShowConnConfig))
+        self.connManagerAction = QAction(QIcon(":/resource/connManager.png"), "管理器", self)
+        self.connManagerAction.triggered.connect(self._handleShowConnConfig)
 
-        toolbar2 = self.addToolBar('bar2')
         self.close_action = QAction(QIcon(":/resource/disConnect.png"), '断开当前连接', self)
         self.close_action.triggered.connect(self._handleCloseSource)
         self.close_action.setEnabled(False)
@@ -256,6 +256,13 @@ class uimain(QMainWindow):
 
         self.refreshscript_action = QAction(QIcon(":/resource/reFresh.png"), '重连当前连接', self)
         self.refreshscript_action.triggered.connect(self._handleRefresh)
+
+
+
+        toolbar1 = self.addToolBar("bar1")
+        toolbar1.addAction(self.connManagerAction)
+
+        toolbar2 = self.addToolBar('bar2')
         toolbar2.addAction(self.close_action)
         toolbar2.addAction(self.reconn_action)
         toolbar2.addAction(self.refreshscript_action)
@@ -324,12 +331,11 @@ class uimain(QMainWindow):
         self.conn_label.setObjectName('connname')
         self.conn_value = QComboBox()
         self.conn_value.setView(QListView())  # 在QSS中设置完后，需要调用如下代码，否则会使用默认的item样式，导致设置无效
-        currentResource = getConnAllRecord(self.mysqlite)
-        if type(currentResource) == list and len(currentResource) > 0:
-            for index, conn in enumerate(currentResource):
-                self.conn_value.addItem(QIcon(":/resource/database_item.png"),conn[1], conn[0])
-                if index == 0:
-                    self.conn_value.setCurrentText(conn[1])
+        connections = getConnRecords(self.mysqlite)
+        for index,conn in enumerate(connections):
+            self.conn_value.addItem(QIcon(":/resource/database_item.png"), conn["name"],conn["id"])
+            if index == 0:
+                self.conn_value.setCurrentText(conn["name"])
 
         # 连接按钮
         self.conn_button = QPushButton('连 接')
@@ -412,14 +418,14 @@ class uimain(QMainWindow):
         """
         # 连接QCombox变化
         self.conn_value.currentTextChanged.connect(self.setDefaultData)
-        # 连接所有资源
+        # 连接资源
         self.conn_button.clicked.connect(self._handleConnSource)
         # 初始化schema
         self.init_button.clicked.connect(self._handleInitDialog)
         # 清除schema表结构和数据
         self.drop_button.clicked.connect(self._handleDropDialog)
         # 清空日志区域信息
-        self.clearlog_button.clicked.connect(self._handleClearLogArea)
+        self.clearlog_button.clicked.connect(self._handleclearLogArea)
 
     def setDefaultData(self):
         """
@@ -428,40 +434,50 @@ class uimain(QMainWindow):
         """
         conn_select_id = self.conn_value.currentData()
         if conn_select_id is not None:
-            conn_record = getOneRecordForAll(self.mysqlite, int(conn_select_id))
+            conninfos = getOneRecordForAll(self.mysqlite, int(conn_select_id))
+            conn_detail = conninfos["conn"]["detail"]
+            self.pid = conninfos["conn"]["pid"]
+            self.pname = conninfos["project"]["name"]
+            self.pscriptdir = conninfos["project"]["script"]
 
-            self.schema_user = conn_record[2]
-            self.schema_pass = conn_record[3]
+            self.sid = conninfos["conn"]["did"]
+            self.sname = conninfos["datasource"]["name"]
+            self.sdriver = conninfos["datasource"]["driver"]
+            self.shost = conninfos["datasource"]["host"]
+            self.sport = conninfos["datasource"]["port"]
 
-            self.pid = conn_record[4]
-            self.pname = conn_record[5]
-            self.pdriver = conn_record[6]
-            self.pscriptdir = conn_record[7]
-
-            self.pid = conn_record[8]
-            self.sname = conn_record[9]
-            self.shost = conn_record[10]
-            self.sport = conn_record[11]
-            self.servicename = conn_record[12]
-
+            if self.sdriver == "oracle":
+                self.schema_servicename = conninfos["datasource"]["sid"]
+                self.schema_user = conn_detail.split("&")[0]
+                self.schema_pass = conn_detail.split("&")[1]
+            else:
+                self.schema_user = conninfos["datasource"]["user"]
+                self.schema_pass = conninfos["datasource"]["password"]
+                self.schema_dbname = conn_detail
             self.script_value.setText(self.pscriptdir)
 
-            self.conn_button.setEnabled(True)
+        self.conn_button.setEnabled(True)
 
-            if self.init_button.isEnabled():
-                self.init_button.setEnabled(False)
+        if self.init_button.isEnabled():
+            self.init_button.setEnabled(False)
 
-            if self.moconn is not None:
-                self._handleCloseSource()
-                self.close_action.setEnabled(False)
-                self.reconn_action.setEnabled(True)
+        if self.moconn is not None:
+            self._handleCloseSource()
+            self.close_action.setEnabled(False)
+            self.reconn_action.setEnabled(True)
 
     def _handleConnSchema(self):
         """
         连接数据库
         :return:
         """
-        mo = MyOracle(self.schema_user, self.schema_pass, self.shost, SERVICE_NAME=self.servicename)
+        if self.sdriver == "oracle":
+            mo = MyOracle(self.schema_user, self.schema_pass, self.shost, self.sport,
+                          SERVICE_NAME=self.schema_servicename)
+        elif self.sdriver == "mysql":
+            mo = MyMySql(self.shost, self.sport, self.schema_user, self.schema_pass, self.schema_dbname)
+        else:
+            mo = None
         return mo
 
     def _handleConnSource(self):
@@ -470,22 +486,23 @@ class uimain(QMainWindow):
         :return:
         """
         # 清空脚本区域，日志区域
-        self.clearscriptarea()
-        self.clearlogarea()
-        # 
-        self._handleUpdateLog(
-            u'数据库TNS=>%s:%s/%s,schema=>%s' % (self.shost, self.sport, self.servicename, self.schema_user))
-        if '' in [self.shost, self.sport, self.servicename, self.schema_user]:
-            self._handleUpdateLog('数据源信息为空,无法操作！')
-            return
+        self.clearScriptArea()
+        self.clearLogArea()
+        #
+        if self.sdriver == "oracle":
+            msg = "数据库TNS=>{0}://{1}:{2}/{3}?user={4}".format(self.sdriver,self.shost, self.sport, self.schema_servicename, self.schema_user)
+        else:
+            msg = "数据库TNS=>{0}://{1}:{2}/{3}?user={4}".format(self.sdriver,self.shost, self.sport, self.schema_dbname,self.schema_user)
+        self._handleUpdateLog(0, msg)
+
         # 判断moconn是否已经连接，若连接则关闭
         if self.moconn is not None:
             self.moconn.close()
         self.moconn = self._handleConnSchema()
-        self.conn_th = ConnThread(self.moconn, self.pscriptdir)
-        self.conn_th.trigger_loginfo.connect(self._handleUpdateLog)
-        self.conn_th.trigger_data.connect(self._handleUpdateScript)
-        self.conn_th.trigger_iscontrol.connect(self._handleSetControl)
+        self.conn_th = ConnThread(self.moconn, self.pscriptdir,self.sdriver)
+        self.conn_th.loginTrigger.connect(self._handleUpdateLog)
+        self.conn_th.dataTrigger.connect(self._handleUpdateScript)
+        self.conn_th.isControlTrigger.connect(self._handleSetControl)
         self.conn_th.start()
         if self.moconn.conn is not None:
             self.init_button.setEnabled(True)  # 初始化按钮可用
@@ -501,17 +518,17 @@ class uimain(QMainWindow):
         """
         if self.moconn is not None:
             self.close_th = CloseThread(self.moconn)
-            self.close_th.triger_info.connect(self._handleUpdateLog)
-            self.close_th.triger_error.connect(self._handleUpdateErrorLog)
+            self.close_th.infoTrigger.connect(self._handleUpdateLog)
             self.close_th.start()
             self.moconn = None
-        self.clearscriptarea()
+        self.clearScriptArea()
         self.init_button.setEnabled(False)  # 关闭连接后，初始化按钮不可用
         self.close_action.setEnabled(False)
         self.conn_button.setEnabled(True)  # 关闭连接后，连接按钮可用
         self.reconn_action.setEnabled(True)
 
     def _handleUpdateScript(self, patch_order_list):
+
         """
         更新脚本区域的控件
         :param patch_order_list:[('0.1.5_20180419.sql',(0, 1, 5, 0, 20180419)),(),()]
@@ -527,24 +544,21 @@ class uimain(QMainWindow):
                 radiobutton = QRadioButton(patch_script)
                 radiobutton.toggled.connect(self._handleUpgradeWindow)  # 选择弹出升级确认对话框
                 self.gridlayout.addWidget(radiobutton, index, 0, 1, 1)
-                # listwidgetitem = QListWidgetItem(radiobutton)
-                # self.script_list.addItem(listwidgetitem)
+            
         else:
-            printinfo = "[" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "]:schema无可更新的脚本"
-            self.bottom_right_info_area.append(printinfo)
+            self._handleUpdateLog(NormalMessage,"无可更新patch")
             lineinfo = QLabel('无可更新的脚本')
             lineinfo.setObjectName('nonepatch')
             lineinfo.setFrameShape(QFrame.NoFrame)
-            # self.gridlayout.addWidget(lineinfo, 0, 0, 1, 1)
 
     def _handleInitDialog(self):
         """
         初始化按钮确认对话框
         :return:
         """
-        self.initdialog = initDialog()
-        self.initdialog.show()
-        self.initdialog.iscontrol.connect(self._handleInitSchema)
+        self.initDialog = initDialog()
+        self.initDialog.show()
+        self.initDialog.isControl.connect(self._handleInitSchema)
 
     def _handleInitSchema(self, iscontrol):
         """
@@ -556,10 +570,10 @@ class uimain(QMainWindow):
         else:
             if not self.moconn:
                 self.moconn = self._handleConnSchema()
-            self.iscontrol = iscontrol
-            self.init_th = InitThread(self.moconn, self.pscriptdir, iscontrol)
-            self.init_th.triger_info.connect(self._handleUpdateLog)
-            self.init_th.triger_error.connect(self._handleUpdateErrorLog)
+            self.isControl = iscontrol
+            self.init_th = InitThread(self.moconn, self.pscriptdir, iscontrol, self.sdriver)
+            self.init_th.infoTrigger.connect(self._handleUpdateLog)
+            self.init_th.errorTrigger.connect(self._handleUpdateErrorLog)
             self.init_th.start()
 
     def _handleDropDialog(self):
@@ -574,8 +588,8 @@ class uimain(QMainWindow):
         quessionbox.exec_()
         if quessionbox.clickedButton() == qyes:
             self.drop_th = DropThread(self.moconn)
-            self.drop_th.triger_info.connect(self._handleUpdateLog)
-            self.drop_th.triger_error.connect(self._handleUpdateErrorLog)
+            self.drop_th.infoTrigger.connect(self._handleUpdateLog)
+            self.drop_th.errorTrigger.connect(self._handleUpdateErrorLog)
             self.drop_th.start()
         else:
             return
@@ -583,9 +597,9 @@ class uimain(QMainWindow):
     def _handleUpgradeWindow(self):
         self.current_upgrade_script_button = self.sender()
         self.current_upgrade_script_name = self.current_upgrade_script_button.text()
-        self.upgradewindow = upgradeDialog(self.current_upgrade_script_name, self.iscontrol, self.pscriptdir)
-        self.upgradewindow.show()
-        self.upgradewindow.upgrade.connect(self._handleUpgradeOper)
+        self.upgradeWindow = upgradeDialog(self.current_upgrade_script_name, self.isControl, self.pscriptdir)
+        self.upgradeWindow.show()
+        self.upgradeWindow.upgrade.connect(self._handleUpgradeOper)
 
     def _handleUpgradeOper(self, opercode):
         if opercode == -1:  # 取消
@@ -605,22 +619,21 @@ class uimain(QMainWindow):
             else:
                 upgrade_scripts_list = None
 
-            self.upgrade_th = UpgradeThread(self.moconn, upgrade_scripts_list, self.pscriptdir, self.iscontrol)
-            self.upgrade_th.triger_info.connect(self._handleUpdateLog)
-            self.upgrade_th.triger_error.connect(self._handleUpdateErrorLog)
+            self.upgrade_th = UpgradeThread(self.moconn, upgrade_scripts_list, self.pscriptdir, self.isControl)
+            self.upgrade_th.infoTrigger.connect(self._handleUpdateLog)
+            self.upgrade_th.errorTrigger.connect(self._handleUpdateErrorLog)
             self.upgrade_th.start()
 
     def _handleShowConnConfig(self):
-        # self.connwindow = QWidget()
-        self.connwindow = MyWidget()
-        SourceWindow(self.connwindow)
-        self.connwindow.setWindowFlags(
+        self.connWindow = MyWidget()
+        SourceWindow(self.connWindow)
+        self.connWindow.setWindowFlags(
             Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint | Qt.WindowStaysOnTopHint)  # 不能最大化，有关闭按钮,置顶
-        self.connwindow.setWindowTitle("连接管理器")
-        self.connwindow.setWindowIcon(QIcon(":/resource/connManager.png"))
-        self.connwindow.show()
+        self.connWindow.setWindowTitle("连接管理器")
+        self.connWindow.setWindowIcon(QIcon(":/resource/connManager.png"))
+        self.connWindow.show()
         self.setEnabled(False)
-        self.connwindow.close_signal.connect(self._handleCloseConfig)
+        self.connWindow.close_signal.connect(self._handleCloseConfig)
 
     def _handleCloseConfig(self):
         """
@@ -629,50 +642,55 @@ class uimain(QMainWindow):
         # """
         self.setEnabled(True)
         self.conn_value.clear()
-        for index, conn in enumerate(getConnAllRecord(self.mysqlite)):
-            self.conn_value.addItem(conn[1], conn[0])
+        for index, conn in enumerate(getConnRecords(self.mysqlite)):
+            self.conn_value.addItem(conn["name"], conn["id"])
             if index == 0:
-                self.conn_value.setCurrentText(conn[1])
+                self.conn_value.setCurrentText(conn["name"])
 
-    def _handleUpdateLog(self, msg):
-        printinfo = "[" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "]:" + msg
-        self.bottom_right_info_area.append(printinfo)
+    def _handleUpdateLog(self, type, msg):
+        printTime = "[{0}]".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+        printTimeHtml = '<vi style = "color:0033FF;" >{0}: </vi >'.format(printTime)
+
+        if type == ErrorMessage:
+            info = '<vi style = "color:red;" >{0}</vi>'.format(msg)
+            myLog.error(msg)
+        elif type == WarningMessage:
+            info = '<vi style = "color:yellow;" >{0}</vi>'.format(msg)
+            myLog.warning(msg)
+        else:
+            info = '<vi style = "color:black;" >{0}</vi>'.format(msg)
+            myLog.info(msg)
+        printInfo = "<p>{0}{1}</p>".format(printTimeHtml, info)
+        self.bottom_right_info_area.append(printInfo)
 
     def _handleUpdateErrorLog(self, error_reason, error_sql):
-        htime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        _rownum = self.bottom_right_error_area.rowCount()
-        self.bottom_right_error_area.insertRow(_rownum)
-        self.bottom_right_error_area.setItem(_rownum, 0, QTableWidgetItem(error_reason))
-        self.bottom_right_error_area.setItem(_rownum, 1, QTableWidgetItem(error_sql))
-        self.bottom_right_error_area.setItem(_rownum, 2, QTableWidgetItem(htime))
+        myLog.error("{0}=>{1}".format(error_reason,error_sql))
+        hTime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        rowNum = self.bottom_right_error_area.rowCount()
+        self.bottom_right_error_area.insertRow(rowNum)
+        self.bottom_right_error_area.setItem(rowNum, 0, QTableWidgetItem(error_reason))
+        self.bottom_right_error_area.setItem(rowNum, 1, QTableWidgetItem(error_sql))
+        self.bottom_right_error_area.setItem(rowNum, 2, QTableWidgetItem(hTime))
 
-    def _handleSetControl(self, controlflag):
+    def _handleSetControl(self, controlFlag):
         """
         设置schema是否被控制
         :param controlflag:
         :return:
         """
-        self.iscontrol = controlflag
+        self.isControl = controlFlag
 
-    def _handleClearLogArea(self):
-        self.clearlogarea()
+    def _handleclearLogArea(self):
+        self.clearLogArea()
 
     def _handleRefresh(self):
         """
         刷新脚本显示
         :return:
         """
-        # # 若当前schema未连接上，则不刷新
-        # if self.moconn is None:
-        #     printinfo = "[" + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "]: schema未连接，无法刷新脚本列表"
-        #     self.bottom_right_info_area.append('printinfo')
-        #     return
-        # # 清空脚本区域
-        # self.clearscriptarea()
-        # #
         self._handleConnSource()
 
-    def clearlogarea(self):
+    def clearLogArea(self):
         """
         清空日志区域
         :return:
@@ -681,7 +699,7 @@ class uimain(QMainWindow):
         self.bottom_right_error_area.clearContents()
         self.bottom_right_error_area.setRowCount(0)
 
-    def clearscriptarea(self):
+    def clearScriptArea(self):
         """
         清空脚本区域
         :return:

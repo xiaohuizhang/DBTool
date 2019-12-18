@@ -225,6 +225,10 @@ QToolTip{
         background: white;
         color: rgb(51, 51, 51);
 }
+/**********文本***********/
+QTextBrowser{
+    font: 14px;
+}
 
 
 /***********树形结构***********/

@@ -1,71 +1,46 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# @Time     : 2018/1/5 下午2:31
+# @Time     : 2019/12/3 16:13
 # @Author   : xhzhang
-# @Site     : xhzhang@afis.com
-# @File     : myOracle.py
+# @Site     : 
+# @File     : MySQLDriver.py
 # @Software : PyCharm
 
-"""This script connect oracle db,excute sql and so on"""
-
-import copy,os,platform
-from cx_Oracle import connect
+import pymysql
 from driver import *
 
-def setOracleClientEnv():
+class MyMySql(Driver):
     """
-    设置oracle客户端环境变量
-    :return:
+    the connection of mysql , excute some sql or file,and so on.
     """
-    platform_tuple = platform.uname()
-    platform_type = platform_tuple[0]
-    platform_machine = platform_tuple[4]
-    if platform_type == 'Windows':
-        instantclient = os.path.join(os.getcwd(), 'client', 'x86', 'instantclient_11_2')
-        os.environ['PATH'] = instantclient + ';' + os.environ['PATH']
-
-class MyOracle(Driver):
-    """
-        the connection of oralce , excute some sql or file,and so on.
-    """
-    def __init__(self, user, password, host, port=1521, coding='UTF8', **kwargs):
+    def __init__(self, host, port, user, password, dbname, charset="UTF8"):
         """
-        init oracle connect object
-        :param user:     schema user
-        :param password: schema user's password
-        :param host:     db host
-        :param port:     db port. default is 1521
-        :param kwargs:   dic{}
+        connect to mysql
+        :param host: mysql server host
+        :param user: mysql server user name
+        :param password: mysql server user password
+        :param db: mysql server db name
+        :param charset: choose charset
         """
-        transDict = dict(COMMON_SQL_REPLACE_MAP, **ORACLE_SQL_REPLACE_MAP)
-        super().__init__(transDict)
+        super().__init__(COMMON_SQL_REPLACE_MAP)
+        self.dbName = dbname
         self.user = user
-        self.host = host
-        _sid = kwargs.get('SID') if 'SID' in kwargs else None
-        _serviceName = kwargs.get('SERVICE_NAME') if 'SERVICE_NAME' in kwargs else None
 
-        if _sid is None and _serviceName is None:
-            sid = None
-            self.login_info = '连接Oracle,需要指定SID或者SERVICE_NAME.请设置.'
-        else:
-            sid = _sid or _serviceName
         try:
-            self.conn = connect(user, password, "{0}:{1}/{2}".format(host, str(port), sid), encoding=coding)
-            self.login_info = '连接成功.'
-            self.schema_version = "版本：{0}".format(self.conn.version)
+            self.conn = pymysql.connect(host=host,
+                                        port=port,
+                                        user=user,
+                                        password=password,
+                                        charset=charset)
             self.cur = self.conn.cursor()
+            self.login_info = '连接成功.'
+            self.schema_version = "版本：{0}".format(self.conn.get_server_info())
         except Exception as e:
-            if str(e).startswith('DPI-1047'):
-                setOracleClientEnv()
-                try:
-                    self.conn = connect(user, password, "{0}:{1}/{2}".format(host, str(port), sid), encoding=coding)
-                    self.login_info = '连接成功.'
-                    self.schema_version = "版本：%s" % str(self.conn.version)
-                    self.cur = self.conn.cursor()
-                except Exception as e:
-                    self.login_info = "连接失败=>%s" % e
-            else:
-                self.login_info = "连接失败=>%s" % e
+            self.login_info = "连接失败=>{0}".format(e)
+
+    def chooseDB(self):
+        self.conn.select_db(self.dbName)
+        self.conn.show_warnings()
 
     def executeDDLFile(self, filename, info=None, error=None):
         """
@@ -79,7 +54,7 @@ class MyOracle(Driver):
         iType = NormalMessage
         eInfo = ""
         eSql = ""
-        sqlLines = ''
+        sqlLines = ""
         try:
             handle = open(filename, 'r', encoding='UTF-8')
             fileLines = handle.readlines()
@@ -91,12 +66,14 @@ class MyOracle(Driver):
         for line in fileLines:
             if not REMOVE_INFO_PATTERN.match(line):  # 去注释,去空行,去提示信息
                 sqlLines += self.trans(line)  # 替换字符
+        # 去掉多行注释
+        newSqlLines = re.sub(REMOVE_MULTILINE_COMMENT, '', sqlLines)
 
-        if JUDGE_PROCED_FUNC_PATTERN.search(sqlLines):  # 过程或者函数
-            sqlCommands = SPLIT_PROCED_FUNC_PATTERN.split(sqlLines)
+        if JUDGE_PROCED_FUNC_PATTERN.search(newSqlLines):  # 过程或者函数
+            sqlCommands = SPLIT_PROCED_FUNC_PATTERN.split(newSqlLines)
         else:  # 其他sql
-            sqlCommands = SPLIT_NORMAL_PATTERN.split(sqlLines)
-
+            sqlCommands = SPLIT_NORMAL_PATTERN.split(newSqlLines)
+        self.chooseDB()
         for oneSql in sqlCommands:
             oneSqlType, oneSqlName, oneSqlSubtype, sql = parseDDL(oneSql)
             if oneSqlType == 'E':  # EXEC调用
@@ -113,33 +90,6 @@ class MyOracle(Driver):
                     iType = ErrorMessage
                     eInfo = str(e)
                     eSql = sql
-
-            elif oneSqlType == 'B':  # Begin...end调用
-                my_dbms_scheduler_map = copy.deepcopy(ORACLE_DBMS_SCHEDULER_MAP)
-                procedureList = SPLIT_BEGIN_END_PATTERN.split(sql)
-                for _procedure in procedureList:
-                    if not JUDGE_BLANK_LINE_PATTREN.match(_procedure):
-                        _p_list = _procedure.strip().partition('(')
-                        p_f_name = _p_list[0]
-                        _p_f_arg_list = re.split(",\n|\)$", _p_list[2])
-                        if p_f_name.lower() in my_dbms_scheduler_map.keys():
-                            p_f_argument = my_dbms_scheduler_map[p_f_name.lower()]
-                            for _p_f_arg in _p_f_arg_list:
-                                if _p_f_arg != '':
-                                    tmp = _p_f_arg.partition('=>')
-                                    key = tmp[0].strip()
-                                    val = tmp[2].strip()
-                                    if key in p_f_argument.keys() and p_f_argument[key] is None:
-                                        p_f_argument[key] = eval(val)
-                            try:
-                                self.cur.callproc(p_f_name, keywordParameters=p_f_argument)
-                                iInfo += "{0}{1}成功".format(oneSqlSubtype, p_f_name)
-                                iType = NormalMessage
-                            except Exception as e:
-                                iInfo += "{0}{1}失败=>{2};".format(oneSqlSubtype, p_f_name, str(e))
-                                iType = ErrorMessage
-                                eInfo += str(e)
-                                eSql += p_f_name
             elif oneSqlType == 'C':
                 try:
                     self.commit()
@@ -173,18 +123,22 @@ class MyOracle(Driver):
             emitMessage(info, (iType, iInfo))
             emitMessage(error, (eInfo, eSql))
 
-    def dropClassData(self, classmap=ORACLE_CLASS_TYPE_MAP, info=None, error=None):
+    def dropClassData(self, classMap=MYSQL_CLASS_TYPE_MAP, info=None, error=None):
         """
-        delete all data according to classtype
+        delete all data according to type
+        :param classMap:
+        :param info:
+        :param error:
         :return:
         """
         # 根据drop顺序排序
-        order_class_type_map = sorted(classmap.items(), key=lambda x: x[1][3])
-
+        order_class_type_map = sorted(classMap.items(), key=lambda x: x[1][3])
+        self.chooseDB()
+        self.cur.execute("""SET FOREIGN_KEY_CHECKS = 0 """)
         for classType in order_class_type_map:
             d_type = classType[0]
             d_type_ch = classType[1][0]
-            query_sql = classType[1][1]
+            query_sql = classType[1][1].format(self.dbName)
             drop_sql = classType[1][2]
 
             self.cur.execute(query_sql)
@@ -216,5 +170,6 @@ class MyOracle(Driver):
                         eInfo = str(e)
                         eSql = 'sys.dbms_scheduler.drop_job ' + object_name
 
-                emitMessage(info, (iType, iInfo))
+                emitMessage(info, (iType,iInfo))
                 emitMessage(error, (eInfo, eSql))
+        self.cur.execute("""SET FOREIGN_KEY_CHECKS = 1 """)
