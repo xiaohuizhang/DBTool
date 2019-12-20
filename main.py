@@ -12,10 +12,14 @@ import logging.handlers
 import sys
 from os.path import dirname, join, isfile, realpath, abspath
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QSize,QFile
+from PyQt5.QtGui import QIcon
 from driver.Sqlite3Driver import MySqlite3
 from comm import SQLITE3_DB_NAME,INIT_DB_SQL,LOG_DIR
 from page.mainwindows import uimain
+from page.myWindow import FramelessWindow
 from resource import *
+from comm import DBMS_Version
 
 
 
@@ -53,12 +57,18 @@ if __name__ == "__main__":
     # 初始化数据库
     initSqLite(current_dir,INIT_DB_SQL)
     # 加载qss文件
-    file = QtCore.QFile(":/resource/pre.qss")
-    file.open(QtCore.QFile.ReadOnly)
+    file = QFile(":/resource/pre.qss")
+    file.open(QFile.ReadOnly)
     styleSheet = file.readAll()
     styleSheet = str(styleSheet, encoding='utf8')
     app = QApplication(sys.argv)
     app.setStyleSheet(styleSheet)
-    ui = uimain()
-    ui.show()
+    # ui = uimain()
+    # ui.show()
+    mainWnd = FramelessWindow()
+    mainWnd.setWindowTitle('DataBase Manager ' + DBMS_Version)
+    mainWnd.setWindowIcon(QIcon(':/resource/database.png'))
+    mainWnd.resize(QSize(1250, 780))
+    mainWnd.setWidget(uimain(mainWnd))  # 把自己的窗口添加进来
+    mainWnd.show()
     sys.exit(app.exec_())

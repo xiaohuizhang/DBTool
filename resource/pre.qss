@@ -1,15 +1,35 @@
-/**********主界面样式**********/
-QMainWindow {
-        border: 1px solid rgb(111, 156, 207);
-        background: rgb(232, 241, 252);
+/**********自定义标题栏****************/
+/*标题栏*/
+TitleBar {
+     background-color: rgb(232, 241, 252);
+}
+/*最小化最大化关闭按钮通用默认背景*/
+#buttonMinimum,#buttonMaximum,#buttonClose {
+     border: none;
+     background-color: rgb(232, 241, 252);
+}
+/*悬停*/
+#buttonMinimum:hover,#buttonMaximum:hover {
+     background-color: rgb(232, 241, 252);
+     color: white;
+}
+#buttonClose:hover {
+     color: white;
+}
+/*鼠标按下不放*/
+#buttonMinimum:pressed,#buttonMaximum:pressed {
+     background-color: Firebrick;
+}
+#buttonClose:pressed {
+     color: white;
+     background-color: Firebrick;
 }
 
+/**********主界面样式**********/
+/**********工具栏**********/
 QToolbar {
         background: rgb(187, 212, 238);
-        border: 1px solid rgb(111, 156, 207);
-        border-left: none;
-        border-right: none;
-        border-bottom: none;
+        /*border: 1px solid rgb(111, 156, 207);*/
 }
 
 /**********菜单**********/
@@ -74,15 +94,13 @@ QPushButton#cancel:pressed{
     background: rgb(0, 78, 161);
 }
 
-
 /**********下拉列表**********/
 QComboBox {
-        height: 23px;
-        width:150px;
+        height: 25px;
+        width:200px;
         border-radius: 4px;
         border: 1px solid rgb(111, 156, 207);
         background: white;
-        padding: 1px 2px 1px 2px;
 }
 QComboBox:enabled {
         color: rgb(84, 84, 84);
@@ -94,15 +112,9 @@ QComboBox:enabled:hover, QComboBox:enabled:focus {
         color: rgb(51, 51, 51);
 }
 QComboBox::drop-down {
-        subcontrol-origin: padding;
-        subcontrol-position: top right;
         width: 20px;
-
-        border-left-width: 1px;
-        border-left-color: darkgray;
-        border-left-style: solid;      /* just a single line */
-        border-top-right-radius: 3px;  /* same radius as the QComboBox */
-        border-bottom-right-radius: 3px;
+        border: none;
+        background: transparent;
 }
 QComboBox::drop-down:hover {
         background: rgba(255, 255, 255, 30);
@@ -111,10 +123,8 @@ QComboBox::down-arrow {
         image: url(:/resource/arrowBottom.png);
 }
 QComboBox::down-arrow:on {
-        image: url(:/resource/arrowTop.png);
+        /**top: 1px;**/
 }
-
-
 QComboBox QAbstractItemView {
         border: 1px solid rgb(111, 156, 207);
         background: white;
@@ -128,7 +138,6 @@ QComboBox QAbstractItemView::item:selected {
         background: rgb(232, 241, 250);
         color: rgb(2, 65, 132);
 }
-
 
 /**********标签**********/
 QLabel#connname {
@@ -146,14 +155,55 @@ QLabel#result_detail {
 }
 
 
-/**********表格**********/
-QTableWidget {
-    border: 1px solid rgb(111, 156, 207);
-    background: white;
-    gridline-color: rgb(111, 156, 207);
+/**********表头**********/
+QHeaderView{
+        border: none;
+        border-bottom: 3px solid rgb(0, 78, 161);
+        background: transparent;
+        min-height: 30px;
+}
+QHeaderView::section:horizontal {
+        border: none;
+        color: rgb(2, 65, 132);
+        background: transparent;
+        padding-left: 5px;
+}
+QHeaderView::section:horizontal:hover {
+        color: white;
+        background: rgb(0, 78, 161);
+}
+QHeaderView::section:horizontal:pressed {
+        color: white;
+        background: rgb(6, 94, 187);
+}
+QHeaderView::up-arrow {
+        width: 13px;
+        height: 11px;
+        padding-right: 5px;
+        image: url(:/resource/topArrow.png);
+        subcontrol-position: center right;
+}
+QHeaderView::up-arrow:hover, QHeaderView::up-arrow:pressed {
+        image: url(:/resource/topArrowHover.png);
+}
+QHeaderView::down-arrow {
+        width: 13px;
+        height: 11px;
+        padding-right: 5px;
+        image: url(:/resource/bottomArrow.png);
+        subcontrol-position: center right;
+}
+QHeaderView::down-arrow:hover, QHeaderView::down-arrow:pressed {
+        image: url(:/White/bottomArrowHover.png);
 }
 
-QTableWidget::item {
+/**********表格**********/
+QTableView {
+        border: 1px solid rgb(111, 156, 207);
+        background: rgb(224, 238, 255);
+        gridline-color: rgb(111, 156, 207);
+}
+QTableView::item {
         padding-left: 5px;
         padding-right: 5px;
         border: none;
@@ -161,18 +211,99 @@ QTableWidget::item {
         border-right: 1px solid rgb(111, 156, 207);
         border-bottom: 1px solid rgb(111, 156, 207);
 }
-
-QTableWidget::item:selected {
+QTableView::item:selected {
         background: rgba(255, 255, 255, 100);
 }
-
-QTableWidget::item:selected:!active {
+QTableView::item:selected:!active {
         color: rgb(65, 65, 65);
 }
-QTableWidget::indicator {
+QTableView::indicator {
         width: 20px;
         height: 20px;
 }
+
+/**********滚动条-水平**********/
+QScrollBar:horizontal {
+        height: 20px;
+        background: transparent;
+        margin-top: 3px;
+        margin-bottom: 3px;
+}
+QScrollBar::handle:horizontal {
+        height: 20px;
+        min-width: 30px;
+        background: rgb(170, 200, 230);
+        margin-left: 15px;
+        margin-right: 15px;
+}
+QScrollBar::handle:horizontal:hover {
+        background: rgb(165, 195, 225);
+}
+QScrollBar::sub-line:horizontal {
+        width: 15px;
+        background: transparent;
+        image: url(:/resource/arrowLeft.png);
+        subcontrol-position: left;
+}
+QScrollBar::add-line:horizontal {
+        width: 15px;
+        background: transparent;
+        image: url(:/resource/arrowRight.png);
+        subcontrol-position: right;
+}
+QScrollBar::sub-line:horizontal:hover {
+        background: rgb(170, 200, 230);
+}
+QScrollBar::add-line:horizontal:hover {
+        background: rgb(170, 200, 230);
+}
+QScrollBar::add-page:horizontal,QScrollBar::sub-page:horizontal {
+        background: transparent;
+}
+
+/**********滚动条-垂直**********/
+QScrollBar:vertical {
+        width: 20px;
+        background: transparent;
+        margin-left: 3px;
+        margin-right: 3px;
+}
+QScrollBar::handle:vertical {
+        width: 20px;
+        min-height: 30px;
+        background: rgb(170, 200, 230);
+        margin-top: 15px;
+        margin-bottom: 15px;
+}
+QScrollBar::handle:vertical:hover {
+        background: rgb(165, 195, 225);
+}
+QScrollBar::sub-line:vertical {
+        height: 15px;
+        background: transparent;
+        image: url(:/resource/topArrow.png);
+        subcontrol-position: top;
+}
+QScrollBar::add-line:vertical {
+        height: 15px;
+        background: transparent;
+        image: url(:/resource/bottomArrow.png);
+        subcontrol-position: bottom;
+}
+QScrollBar::sub-line:vertical:hover {
+        background: rgb(170, 200, 230);
+}
+QScrollBar::add-line:vertical:hover {
+        background: rgb(170, 200, 230);
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+        background: transparent;
+}
+
+QScrollBar#verticalScrollBar:vertical {
+        margin-top: 30px;
+}
+
 
 /**********复选框**********/
 QCheckBox{
@@ -225,6 +356,7 @@ QToolTip{
         background: white;
         color: rgb(51, 51, 51);
 }
+
 /**********文本***********/
 QTextBrowser{
     font: 14px;
@@ -233,11 +365,10 @@ QTextBrowser{
 
 /***********树形结构***********/
 QTreeWidget{
-show-decoration-selected:1;
+    show-decoration-selected:1;
 }
 
 QTreeWidget::item {
-    border:1px solid #d9d9d9;
     border-top-color: transparent;
     border-bottom-color: transparent;
 }
@@ -264,15 +395,15 @@ QTreeWidget::branch {
 }
 
 QTreeView::branch:has-siblings:!adjoins-item {
-    border-image: url(:/resource/tree_middle.png)0;
+    border-image: url(:/resource/vline.png)0;
 }
 
 QTreeView::branch:has-siblings:adjoins-item {
-    border-image: url(:/resource/tree_middle.png)0;
+    border-image: url(:/resource/branch-more.png)0;
 }
 
 QTreeView::branch:!has-children:!has-siblings:adjoins-item {
-    border-image: url(:/resource/tree_middle.png)0;
+    border-image: url(:/resource/branch-end.png)0;
 }
 
 QTreeView::branch:has-children:!has-siblings:closed,
@@ -338,15 +469,25 @@ QGroupBox::title {
         top: -10px;
         left: 10px;
 }
-
-/**********滚动条************/
-QScrollArea {
-
+/*****************frame******************/
+QFrame#connFrame {
+    border: 1px solid #B0B7C6;
 }
 
+QFrame#scriptFrame {
+    border-left: 1px solid #B0B7C6;
+    border-right: 1px solid #B0B7C6;
+    border-bottom: 1px solid #B0B7C6;
+}
 
+QFrame#scriptListFrame {
+    border-left: 1px solid #B0B7C6;
+    border-right: 1px solid #B0B7C6;
+    border-bottom: 1px solid #B0B7C6;
+    background-color: #DC143C;
+}
 
-
-
-
-
+QTextBrowser#infoFrame {
+    border-right: 1px solid #B0B7C6;
+    border-bottom: 1px solid #B0B7C6;
+}

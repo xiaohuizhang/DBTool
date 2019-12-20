@@ -55,17 +55,18 @@ class MyOracle(Driver):
             self.schema_version = "版本：{0}".format(self.conn.version)
             self.cur = self.conn.cursor()
         except Exception as e:
-            if str(e).startswith('DPI-1047'):
-                setOracleClientEnv()
-                try:
-                    self.conn = connect(user, password, "{0}:{1}/{2}".format(host, str(port), sid), encoding=coding)
-                    self.login_info = '连接成功.'
-                    self.schema_version = "版本：%s" % str(self.conn.version)
-                    self.cur = self.conn.cursor()
-                except Exception as e:
-                    self.login_info = "连接失败=>%s" % e
-            else:
-                self.login_info = "连接失败=>%s" % e
+            self.login_info = "连接失败=>{0}".format(e)
+            # if str(e).startswith('DPI-1047'):
+            #     setOracleClientEnv()
+            #     try:
+            #         self.conn = connect(user, password, "{0}:{1}/{2}".format(host, str(port), sid), encoding=coding)
+            #         self.login_info = '连接成功.'
+            #         self.schema_version = "版本：%s" % str(self.conn.version)
+            #         self.cur = self.conn.cursor()
+            #     except Exception as e:
+            #         self.login_info = "连接失败=>%s" % e
+            # else:
+            #     self.login_info = "连接失败=>%s" % e
 
     def executeDDLFile(self, filename, info=None, error=None):
         """

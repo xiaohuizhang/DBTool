@@ -16,8 +16,23 @@
         <file>resource/rightButton.png</file>
         <file>resource/radioButtonChecked.png</file>
         <file>resource/radioButtonCheckedHover.png</file>
-        <file>resource/radioButtonCheckedPressed.png</file>
+        <file>resource/topArrow.png</file>
+        <file>resource/topArrowHover.png</file>
+        <file>resource/bottomArrow.png</file>
+        <file>resource/bottomArrowHover.png</file>
+        <file>resource/bottomArrowHover.png</file>
+        <file>resource/arrowLeft.png</file>
+        <file>resource/arrowRight.png</file>
         <file>resource/title.ico</file>
+        <file>resource/database.png</file>
+        <file>resource/oracle.png</file>
+        <file>resource/mysql.png</file>
+        <file>resource/postgresql.png</file>
+        <file>resource/sqlite.png</file>
+        <file>resource/downButton.png</file>
+<!--        <file>resource/vline.png</file>-->
+<!--        <file>resource/branch-end.png</file>-->
+<!--        <file>resource/branch-more.png</file>-->
         <file>resource/pre.qss</file>
     </qresource>
 </RCC>

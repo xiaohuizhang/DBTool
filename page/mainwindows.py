@@ -20,6 +20,8 @@ from driver.MySQLDriver import MyMySql
 from comm import *
 from page.schemaoper import ConnThread, InitThread, UpgradeThread, CloseThread, DropThread
 from page.manager import SourceWindow
+from page.myWindow import FramelessWindow
+
 
 
 myLog = logging.getLogger('dbtool')
@@ -40,6 +42,7 @@ class MyWidget(QWidget):
         # else:
         #     event.ignore()
         self.close_signal.emit()
+
 
 # 初始化确认弹出框
 class initDialog(QDialog):
@@ -146,10 +149,11 @@ class upgradeDialog(QDialog):
 
     def SetDeaultData(self):
         patch_dir = os.path.join(self.psdir, 'patch', self.patchname)
+        handle = None
         try:
             handle = open(patch_dir, 'r')
-            filelines = handle.read()
-            self.sql_area.append(filelines)
+            fileLines = handle.read()
+            self.sql_area.append(fileLines)
         except Exception as e:
             self.logs.emit(str(e))
             return
@@ -182,61 +186,60 @@ class upgradeDialog(QDialog):
         self.close()
 
 # 主窗口
-class uimain(QMainWindow):
+class uimain(QWidget):
     moconn = None
     mysqlite = None
     can_upgrade_patch_order_list = []
     can_upgrade_script = []
 
-    def __init__(self):
-        self.mylog = logging.getLogger('myapp')
+    def __init__(self, flags, *args, **kwargs):
+        super().__init__(flags, *args, **kwargs)
         self.mysqlite = MySqlite3()
         self.mysqlite.openDb()
         if self.mysqlite.isOpen():
-            super(uimain, self).__init__()
-            self.setupUI(self)
+            self.setupUI()
         else:
             self.mylog.error('open sqlite3 db failed')
 
-    def setupUI(self, uimain):
-        uimain.setObjectName("MainWindow")
-        uimain.resize(1200, 700)
-        uimain.setWindowTitle('DBTool ' + DBMS_Version)
-        uimain.setWindowIcon(QIcon(':/resource/title.ico'))
-        # 将窗口移动到屏幕中心
-        qr = uimain.frameGeometry()
-        cp = QDesktopWidget().availableGeometry().center()
-        qr.moveCenter(cp)
-        uimain.move(qr.topLeft())
+    def setupUI(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        self.setMainFrame()
+        self.toolbar = QToolBar()
+        self.connFrame = QFrame()
+        self.scriptFrame = QFrame()
+        self.scriptListFrame = QFrame()
+        self.infoFrame = QTextBrowser()
+        self.errorFrame = QTableWidget()
+
+        self.scroll = QScrollArea()
+        self.scroll.setAutoFillBackground(True)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setWidget(self.scriptListFrame)
+
+        resultLayout = QVBoxLayout()
+        resultLayout.addWidget(self.infoFrame)
+        resultLayout.addWidget(self.errorFrame)
+
+        detailLayout = QHBoxLayout()
+        detailLayout.addWidget(self.scroll,2)
+        detailLayout.addLayout(resultLayout, 6)
+
+        layout.addWidget(self.toolbar)
+        layout.addWidget(self.connFrame)
+        layout.addWidget(self.scriptFrame, )
+        layout.addLayout(detailLayout)
+
+
         self.setToolBar()
-
-    # def setMenu(self):
-    #     """
-    #     设置菜单栏
-    #     :return:
-    #     """
-    #     menubar = self.menuBar()
-    #     filemenu = menubar.addMenu("")
-    #     filemenu.addAction(QAction(QIcon(":/connManager1.png"), "连接管理器", self, triggered=self._handleShowConnConfig))
-    #     # filemenu.addAction(QAction(QIcon("./resource/connManager.png"), "连接管理器", self, triggered=self._handleShowConnConfig))
-    #     # filemenu.addAction(QAction(QIcon("./resource/conntree.png"), "添加当前连接到连接管理器", self))
-    #     # filemenu.addAction("导出")
-    #     # filemenu.addAction("导入")
-    #
-    #     # 配置
-    #     # configmenu = menubar.addMenu("配置(C)")
-    #     # configmenu.addAction(QAction("连接配置", self, triggered=self._handleShowConnConfig))
-    #     # configmenu.addAction(QAction("项目源配置", self, triggered=self.openschemawindow))
-    #     # configmenu.addAction(QAction("数据源配置", self, triggered=self.openschemawindow))
-    #
-    #     toolmenu = menubar.addMenu("工具(T)")
-    #     toolmenu.addAction("断开当前连接")
-    #     toolmenu.addAction("重连上次连接")
-    #
-    #     helpmenu = menubar.addMenu("帮助(H)")
-    #     helpmenu.addAction("关于")
+        self.setConnFrame()
+        self.setScriptFrame()
+        self.setScriptListFrame()
+        self.setInfoFrame()
+        self.setErrorFrame()
+        self.setDefaultData()
+        self.setSlotFunction()
 
     def setToolBar(self):
         """
@@ -258,85 +261,36 @@ class uimain(QMainWindow):
         self.refreshscript_action.triggered.connect(self._handleRefresh)
 
 
+        self.toolbar.addAction(self.connManagerAction)
+        self.toolbar.addAction(self.close_action)
+        self.toolbar.addAction(self.reconn_action)
+        self.toolbar.addAction(self.refreshscript_action)
 
-        toolbar1 = self.addToolBar("bar1")
-        toolbar1.addAction(self.connManagerAction)
+    def setConnFrame(self):
+        self.connFrame.setFixedHeight(40)
+        self.connFrame.setObjectName("connFrame")
 
-        toolbar2 = self.addToolBar('bar2')
-        toolbar2.addAction(self.close_action)
-        toolbar2.addAction(self.reconn_action)
-        toolbar2.addAction(self.refreshscript_action)
-
-    def setMainFrame(self):
-        """
-        设置页面整体布局
-        :return:
-        """
-        # top
-        self.topframe = QFrame(self)
-        self.topframe.setObjectName('topframe')
-        self.topframe.setFrameShape(QFrame.StyledPanel)
-        self.topframe.setFixedHeight(40)
-        # middle
-        self.middle_frame = QFrame(self)
-        # self.middle_frame.setFrameShape(QFrame.StyledPanel)
-        self.middle_frame.setFixedHeight(20)
-        # bottom_left
-        self.bottom_left_bot_frame = QFrame(self)
-        # self.bottom_left_bot_frame.setFrameShape(QFrame.StyledPanel)
-
-        scroll = QScrollArea()
-        scroll.setAutoFillBackground(True)
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(self.bottom_left_bot_frame)
-
-        # bottom_right
-        self.bottom_right_info_area = QTextBrowser(self)
-        self.bottom_right_error_area = QTableWidget(self)
-
-        bottom_right_spliter = QSplitter(Qt.Vertical)
-        bottom_right_spliter.setHandleWidth(1)
-        bottom_right_spliter.addWidget(self.bottom_right_info_area)
-        bottom_right_spliter.addWidget(self.bottom_right_error_area)
-
-        bottom_spliter = QSplitter(Qt.Horizontal)
-        bottom_spliter.setHandleWidth(1)
-        bottom_spliter.addWidget(scroll)
-        bottom_spliter.addWidget(bottom_right_spliter)
-        bottom_spliter.setStretchFactor(0, 1)
-        bottom_spliter.setStretchFactor(1, 2)
-        bottom_spliter.setChildrenCollapsible(False)
-
-        self.splitter = QSplitter(Qt.Vertical)
-        self.splitter.setOpaqueResize(False)
-        self.splitter.setHandleWidth(1)
-        self.splitter.addWidget(self.topframe)
-        self.splitter.addWidget(self.middle_frame)
-        self.splitter.addWidget(bottom_spliter)
-        self.setCentralWidget(self.splitter)
-
-        self.setFrameTop()
-        self.setFrameMiddle()
-        self.setFrameBottom()
-        self.setDefaultData()
-        self.setSlotFunction()
-
-    def setFrameTop(self):
-        """
-        设置顶部布局
-        :return:
-        """
         # 连接
-        self.conn_label = QLabel('连接(C):')
-        self.conn_label.setObjectName('connname')
+        self.conn_label = QLabel("连接(C):")
+        self.conn_label.setObjectName("connLabel")
         self.conn_value = QComboBox()
-        self.conn_value.setView(QListView())  # 在QSS中设置完后，需要调用如下代码，否则会使用默认的item样式，导致设置无效
+        self.conn_value.setView(QListView())
         connections = getConnRecords(self.mysqlite)
-        for index,conn in enumerate(connections):
-            self.conn_value.addItem(QIcon(":/resource/database_item.png"), conn["name"],conn["id"])
+        for index, conn in enumerate(connections):
+            datasource = getDatasourceRecords(self.mysqlite, conn["did"])
+            if datasource[0]["driver"] == "oracle":
+                icon = QIcon(":/resource/oracle.png")
+            elif datasource[0]["driver"] == "mysql":
+                icon = QIcon(":/resource/mysql.png")
+            elif datasource[0]["driver"] == "postgresql":
+                icon = QIcon(":/resource/postgresql.png")
+            elif datasource[0]["driver"] == "sqlite":
+                icon = QIcon(":/resource/sqlite.png")
+            else:
+                icon = QIcon(":/resource/database_item.jpg")
+            self.conn_value.addItem(icon, conn["name"], conn["id"])
             if index == 0:
                 self.conn_value.setCurrentText(conn["name"])
-
         # 连接按钮
         self.conn_button = QPushButton('连 接')
         self.conn_button.setToolTip('连接数据库')
@@ -361,7 +315,7 @@ class uimain(QMainWindow):
         hbox1.addWidget(self.conn_value)
         hbox1.addStretch()
 
-        top_hbox = QHBoxLayout(self.topframe)
+        top_hbox = QHBoxLayout(self.connFrame)
         top_hbox.setContentsMargins(5, 5, 1, 1)
         top_hbox.addLayout(hbox1)
         top_hbox.addWidget(self.conn_button)
@@ -369,44 +323,44 @@ class uimain(QMainWindow):
         top_hbox.addWidget(self.drop_button)
         top_hbox.addStretch(10)
         top_hbox.addWidget(self.clearlog_button)
-        # top_hbox.addStretch(10)
-        # top_hbox.addWidget(self.version_control)
-        # top_hbox.addStretch(10)
 
-    def setFrameMiddle(self):
-        """
-        设置中间布局
-        :return:
-        """
+    def setScriptFrame(self):
+        self.scriptFrame.setFixedHeight(20)
+        self.scriptFrame.setObjectName("scriptFrame")
+
         script_label = QLabel()
         script_label.setAlignment(Qt.AlignTop)
         script_label.setMargin(0)
         script_label.setText('脚本路径:')
         self.script_value = QLabel()
-        self.script_value.setObjectName('scriptvalue')
+        self.script_value.setObjectName("scriptValue")
         self.script_value.setFrameShape(QFrame.NoFrame)
         self.script_value.setFrameShadow(QFrame.Sunken)
         self.script_value.setAlignment(Qt.AlignLeft)
 
-        hbox = QHBoxLayout(self.middle_frame)
+        hbox = QHBoxLayout(self.scriptFrame)
         hbox.setContentsMargins(1, 1, 1, 1)
         hbox.addWidget(script_label)
         hbox.addWidget(self.script_value)
         hbox.addStretch()
 
-    def setFrameBottom(self):
-        """
-        设置底部布局
-        :return:
-        """
-        # middle-left
-        self.gridlayout = QGridLayout(self.bottom_left_bot_frame)
+    def setScriptListFrame(self):
+        self.scriptListFrame.setObjectName("scriptListFrame")
+        self.gridlayout = QGridLayout(self.scriptListFrame)
         self.gridlayout.setContentsMargins(0, 0, 0, 0)
         self.gridlayout.setSpacing(5)
 
-        self.bottom_right_error_area.setColumnCount(3)
-        self.bottom_right_error_area.setHorizontalHeaderLabels(['错误', 'SQL', '时间'])
-        header = self.bottom_right_error_area.horizontalHeader()
+
+
+    def setInfoFrame(self):
+        self.infoFrame.setObjectName("infoFrame")
+
+
+    def setErrorFrame(self):
+        self.errorFrame.setFocusPolicy(Qt.NoFocus)
+        self.errorFrame.setColumnCount(3)
+        self.errorFrame.setHorizontalHeaderLabels(['错误', 'SQL', '时间'])
+        header = self.errorFrame.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
@@ -434,25 +388,29 @@ class uimain(QMainWindow):
         """
         conn_select_id = self.conn_value.currentData()
         if conn_select_id is not None:
-            conninfos = getOneRecordForAll(self.mysqlite, int(conn_select_id))
-            conn_detail = conninfos["conn"]["detail"]
-            self.pid = conninfos["conn"]["pid"]
-            self.pname = conninfos["project"]["name"]
-            self.pscriptdir = conninfos["project"]["script"]
+            connInfos = getOneRecordForAll(self.mysqlite, int(conn_select_id))
+            conn = connInfos["conn"]
+            datasource = connInfos["datasource"]
+            project = connInfos["project"]
 
-            self.sid = conninfos["conn"]["did"]
-            self.sname = conninfos["datasource"]["name"]
-            self.sdriver = conninfos["datasource"]["driver"]
-            self.shost = conninfos["datasource"]["host"]
-            self.sport = conninfos["datasource"]["port"]
+            conn_detail = conn["detail"]
+            self.pid = conn["pid"]
+            self.pname = project["name"]
+            self.pscriptdir = project["script"]
+
+            self.sid = conn["did"]
+            self.sname = datasource["name"]
+            self.sdriver = datasource["driver"]
+            self.shost = datasource["host"]
+            self.sport = datasource["port"]
 
             if self.sdriver == "oracle":
-                self.schema_servicename = conninfos["datasource"]["sid"]
+                self.schema_servicename = datasource["sid"]
                 self.schema_user = conn_detail.split("&")[0]
                 self.schema_pass = conn_detail.split("&")[1]
             else:
-                self.schema_user = conninfos["datasource"]["user"]
-                self.schema_pass = conninfos["datasource"]["password"]
+                self.schema_user = datasource["user"]
+                self.schema_pass = datasource["password"]
                 self.schema_dbname = conn_detail
             self.script_value.setText(self.pscriptdir)
 
@@ -490,9 +448,9 @@ class uimain(QMainWindow):
         self.clearLogArea()
         #
         if self.sdriver == "oracle":
-            msg = "数据库TNS=>{0}://{1}:{2}/{3}?user={4}".format(self.sdriver,self.shost, self.sport, self.schema_servicename, self.schema_user)
+            msg = "数据库=>{0}://{1}:{2}/{3}?user={4}".format(self.sdriver,self.shost, self.sport, self.schema_servicename, self.schema_user)
         else:
-            msg = "数据库TNS=>{0}://{1}:{2}/{3}?user={4}".format(self.sdriver,self.shost, self.sport, self.schema_dbname,self.schema_user)
+            msg = "数据库=>{0}://{1}:{2}/{3}?user={4}".format(self.sdriver,self.shost, self.sport, self.schema_dbname,self.schema_user)
         self._handleUpdateLog(0, msg)
 
         # 判断moconn是否已经连接，若连接则关闭
@@ -661,16 +619,16 @@ class uimain(QMainWindow):
             info = '<vi style = "color:black;" >{0}</vi>'.format(msg)
             myLog.info(msg)
         printInfo = "<p>{0}{1}</p>".format(printTimeHtml, info)
-        self.bottom_right_info_area.append(printInfo)
+        self.infoFrame.append(printInfo)
 
     def _handleUpdateErrorLog(self, error_reason, error_sql):
         myLog.error("{0}=>{1}".format(error_reason,error_sql))
         hTime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        rowNum = self.bottom_right_error_area.rowCount()
-        self.bottom_right_error_area.insertRow(rowNum)
-        self.bottom_right_error_area.setItem(rowNum, 0, QTableWidgetItem(error_reason))
-        self.bottom_right_error_area.setItem(rowNum, 1, QTableWidgetItem(error_sql))
-        self.bottom_right_error_area.setItem(rowNum, 2, QTableWidgetItem(hTime))
+        rowNum = self.errorFrame.rowCount()
+        self.errorFrame.insertRow(rowNum)
+        self.errorFrame.setItem(rowNum, 0, QTableWidgetItem(error_reason))
+        self.errorFrame.setItem(rowNum, 1, QTableWidgetItem(error_sql))
+        self.errorFrame.setItem(rowNum, 2, QTableWidgetItem(hTime))
 
     def _handleSetControl(self, controlFlag):
         """
@@ -695,9 +653,9 @@ class uimain(QMainWindow):
         清空日志区域
         :return:
         """
-        self.bottom_right_info_area.clear()
-        self.bottom_right_error_area.clearContents()
-        self.bottom_right_error_area.setRowCount(0)
+        self.infoFrame.clear()
+        self.errorFrame.clearContents()
+        self.errorFrame.setRowCount(0)
 
     def clearScriptArea(self):
         """

@@ -152,7 +152,7 @@ class ConnThread(QThread):
         else:
             isControl = self.db.executeQuery(SCHEMA_CONTROL_SQL, trigger=self.loginTrigger)
             assert (isinstance(isControl, list))
-            if isControl[0][0] == 0:
+            if len(isControl) == 0 or isControl[0][0] == 0 :
                 self.isControl = 0
             else:
                 self.isControl = int(isControl[0][0])

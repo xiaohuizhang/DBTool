@@ -40,6 +40,8 @@ class SourceWindow(QWidget):
         # tree
         self.left_tree = QTreeWidget()
         self.left_tree.setAutoScroll(True)
+        self.left_tree.setFocusPolicy(Qt.NoFocus)
+        self.left_tree.setStyle(QStyleFactory.create("windows"))
         self.left_tree.setFrameShape(QFrame.Box)
 
         self.left_tree.setColumnCount(2)
