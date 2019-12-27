@@ -108,8 +108,7 @@ def writeOperRecord(oper, dbhost, dbschema, script=None):
     sql = REMOTE_INSERT_SQL.format((event, dbhost, dbschema, ip, hostname, loginuser))
     remote_conn = MyOracle(REMOTE_RECORD_SCHEAMUSER, REMOTE_RECORD_SCHEAMPASS, REMOTE_RECORD_HOST,
                            SERVICE_NAME=REMOTE_RECORD_SERVICENAME)
-    remote_conn.executeInsert(sql)
-    remote_conn.commit()
+    remote_conn.executeDML(sql)
     remote_conn.close()
 
 class ConnThread(QThread):
@@ -141,6 +140,9 @@ class ConnThread(QThread):
     def run(self):
         if self.db.login_info is not None and self.db.schema_version is not None:
             self.loginTrigger.emit(NormalMessage, self.db.login_info + self.db.schema_version)
+
+        if self.db.selectDBInfo != "":
+            self.loginTrigger.emit(ErrorMessage,self.db.selectDBInfo)
 
         if self.db.conn is None:
             return
@@ -236,7 +238,7 @@ class InitThread(QThread):
         for scripTuple in initScriptOrder:
             self.infoTrigger.emit(NormalMessage, '--------{}-------'.format(scripTuple[0]))
             self.db.executeDDLFile(os.path.join(trunk_dir, scripTuple[0]), self.infoTrigger, self.errorTrigger)
-        self.db.executeInsert(INSERT_INIT_SQL.format(self.isControl), self.infoTrigger)
+        self.db.executeDML(INSERT_INIT_SQL.format(self.isControl), self.infoTrigger)
         self.db.commit()
         self.infoTrigger.emit(NormalMessage, '初始化结束.')
         # patch
@@ -250,7 +252,7 @@ class InitThread(QThread):
             else:
                 insert_sql = INSERT_PATCH_SQL.format(patch_order[0][1], patch_order[0][0])
                 curr_version = '{0[0]}.{0[1]}.{0[2]}.{0[3]}_{0[4]}'.format(patch_order[0][1])
-            self.db.executeInsert(insert_sql, self.infoTrigger)
+            self.db.executeDML(insert_sql, self.infoTrigger)
             self.db.commit()
             self.infoTrigger.emit(NormalMessage, '初始化的脚本版本: %s' % curr_version)
         # 远程记录
@@ -258,7 +260,7 @@ class InitThread(QThread):
 
 
 class DropThread(QThread):
-    infoTrigger = pyqtSignal(str)
+    infoTrigger = pyqtSignal([int,str])
     errorTrigger = pyqtSignal([str, str])
 
     def __init__(self, db, parent=None):
@@ -266,12 +268,12 @@ class DropThread(QThread):
         self.db = db
 
     def run(self):
-        self.db.drop_class_data(info=self.infoTrigger, error=self.errorTrigger)
+        self.db.dropClassData(info=self.infoTrigger, error=self.errorTrigger)
         self.infoTrigger.emit(NormalMessage, '清除结束！')
         writeOperRecord('drop', self.db.host, self.db.user)
 
 class UpgradeThread(QThread):
-    infoTrigger = pyqtSignal(str)
+    infoTrigger = pyqtSignal([int,str])
     errorTrigger = pyqtSignal([str, str])
 
     def __init__(self, db, scriptList, scriptDir, isControl, parent=None):
@@ -295,9 +297,9 @@ class UpgradeThread(QThread):
             _u_script = s[0]
             _u_version = s[1]
             script_str = _u_script
-            _u_script_dir = os.path.join(self.scripdir, 'patch', _u_script)
+            _u_script_dir = os.path.join(self.scripDir, 'patch', _u_script)
             self.infoTrigger.emit(NormalMessage, '---------{0}---------'.format(_u_script_dir))
-            self.db.execute_ddl_file(_u_script_dir, self.infoTrigger, self.errorTrigger)
+            self.db.executeDDLFile(_u_script_dir, self.infoTrigger, self.errorTrigger)
             if self.isControl == 1:
                 if self.flag == 0:
                     insert_sql = INSERT_PATCH_SQL.format(_u_version, _u_script)
@@ -306,7 +308,7 @@ class UpgradeThread(QThread):
                 else:
                     pass
                 # 插入版本控制记录
-                self.db.executeInsert(insert_sql, self.infoTrigger)
+                self.db.executeDML(insert_sql, self.infoTrigger)
                 # 提交
                 self.db.commit()
         self.infoTrigger.emit(NormalMessage, '更新结束！')

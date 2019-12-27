@@ -6,6 +6,7 @@
 # @File     : sourceconfig.py
 # @Software : PyCharm
 
+import logging
 from PyQt5.QtCore import *
 from PyQt5.QtGui import QIntValidator, QIcon
 from PyQt5.QtWidgets import *
@@ -13,7 +14,7 @@ from PyQt5 import sip
 from driver.Sqlite3Driver import *
 from comm import *
 
-
+myLog = logging.getLogger('dbtool')
 class SourceWindow(QWidget):
     """
     配置页面展示
@@ -28,7 +29,6 @@ class SourceWindow(QWidget):
 
     def __init__(self, parent=None):
         self.mysqlite = MySqlite3()
-        self.mysqlite.openDb()
         super(SourceWindow, self).__init__(parent)
         self.setFixedSize(800, 600)
         self.SetupUI()
@@ -63,6 +63,15 @@ class SourceWindow(QWidget):
         self.schema_tree = QTreeWidgetItem(self.tree_root)
         self.schema_tree.setText(0, '数据源')
         self.schema_tree.setText(1, '2')
+
+        self.oracle_tree = QTreeWidgetItem(self.schema_tree)
+        self.oracle_tree.setText(0,"Oracle")
+        self.oracle_tree.setText(1,'21')
+
+        self.mysql_tree = QTreeWidgetItem(self.schema_tree)
+        self.mysql_tree.setText(0, "MySQL")
+        self.mysql_tree.setText(1, "22")
+
 
         # button
         self.button_frame = QFrame()
@@ -258,7 +267,7 @@ class SourceWindow(QWidget):
         """
         pro_group = QGroupBox()
         pro_group.setTitle('项目源')
-        pro_group.setMinimumHeight(475)
+        pro_group.setFixedHeight(475)
         self.pro_editbutton = QPushButton(QIcon(":/resource/edit.png"), '修改')
         self.pro_editresult = QLabel()
         self.pro_editresult.setObjectName('result')
@@ -400,6 +409,7 @@ class SourceWindow(QWidget):
         group = QGroupBox()
         group.setTitle('新连接')
         group.setObjectName('indent')
+        group.setFixedHeight(475)
         group.setAutoFillBackground(True)
         # 连接名
         self.conn_exist_label = QLabel('连接名:')
@@ -679,7 +689,14 @@ class SourceWindow(QWidget):
         for schema in schema_records:
             sid = schema["id"]
             sname = schema["name"]
-            child3 = QTreeWidgetItem(self.schema_tree)
+            sdriver = schema["driver"]
+            if sdriver == "oracle":
+                child3 = QTreeWidgetItem(self.oracle_tree)
+            elif sdriver == "mysql":
+                child3 = QTreeWidgetItem(self.mysql_tree)
+            else:
+                child3 = QTreeWidgetItem(self.schema_tree)
+
             child3.setText(0, sname)
             child3.setText(1, str(sid))
 
@@ -854,7 +871,7 @@ class SourceWindow(QWidget):
             else:
                 self.pro_editresult.setText('')
             self.ShowProData(selectID)
-        elif selectParent.text(1) == '2':  # 表示数据源
+        elif selectParent.text(1) in ['21','22']:  # 表示数据源
             if self.flag != 3:
                 self.clearAllChileren(self.right_frame)
                 self.ShowDataSourcePage()
@@ -875,22 +892,22 @@ class SourceWindow(QWidget):
         selectID = currnet_item.text(1)
         if selectparent.text(1) == '0':  # 表示删除连接的某个节点
             self.conn_tree.removeChild(currnet_item)
-            sql = '''delete from connections where id=%d;''' % int(selectID)
-
+            r = deleteConnRecord(self.mysqlite,selectID)
         elif selectparent.text(1) == '1':  # 表示删除项目源的某个节点
             self.pro_tree.removeChild(currnet_item)
-            sql = '''delete from projects where id=%d;''' % int(selectID)
-        elif selectparent.text(1) == '2':  # 表示删除数据源的某个节点
+            r = deleteProRecord(self.mysqlite,selectID)
+        elif selectparent.text(1) in ['21','22']:  # 表示删除数据源的某个节点
             self.schema_tree.removeChild(currnet_item)
-            sql = '''delete from datasources where id=%d;''' % int(selectID)
+            r = deleteSchema(self.mysqlite,selectID)
         else:
-            sql = None
+            r = None
+        if r is None:
+            current_item = self.left_tree.currentItem()
+            self._handleItemSeclect(current_item)
+        else:
+            myLog.error(str(r))
 
-        if sql is not None:
-            del_result = self.mysqlite.exec_statement(sql)
-            if del_result is None:
-                current_item = self.left_tree.currentItem()
-                self._handleItemSeclect(current_item)
+
 
     def _handleDriverChanged(self, text):
         """
@@ -1061,7 +1078,7 @@ class SourceWindow(QWidget):
             self.connect_editresult.setStyleSheet("color:gray;")
         else:
             sql = '''update connections set Name='%s',ProjectId=%d,SchemaId=%d,ConnDetail='%s' where id=%d;''' % (current_conn_name, int(current_pro_id), int(current_sche_id),current_conn_detail,int(current_conn_id))
-            r = self.mysqlite.exec_statement(sql)
+            r = self.mysqlite.executeDML(sql)
             if r is None:
                 _result = '成功'
                 _detail = ""
@@ -1088,7 +1105,7 @@ class SourceWindow(QWidget):
         old_project = getProjectRecords(self.mysqlite, int(id))
         if new_project != old_project[0]:
             sql = '''update projects set Name='%s',Script='%s' where id=%d;''' % (name,script,int(id))
-            r = self.mysqlite.exec_statement(sql)
+            r = self.mysqlite.executeDML(sql)
             if r is None:
                 _result = '成功'
                 self.pro_editresult.setStyleSheet("color:green;")
@@ -1125,7 +1142,7 @@ class SourceWindow(QWidget):
 
         if new_datasource != old_datasource[0]:
             sql = '''update datasources set Name='%s',Driver='%s',Host='%s',Port=%d,Other='%s' where id=%d;''' % (name, driver, host, int(port), other, int(id))
-            r = self.mysqlite.exec_statement(sql)
+            r = self.mysqlite.executeDML(sql)
             if r is None:
                 _result = '成功'
                 self.schema_editresult.setStyleSheet("color:green;")
@@ -1274,7 +1291,13 @@ class SourceWindow(QWidget):
         sr = insertSchemaRecord(self.mysqlite, schema_name, schema_driver,schema_host, schema_port, datasource_other)
         if sr is None:
             schema_id = getDataSourceCurrentSeq(self.mysqlite)
-            child1 = QTreeWidgetItem(self.schema_tree)
+            if schema_driver == "oracle":
+                child1 = QTreeWidgetItem(self.oracle_tree)
+            elif schema_driver == "mysql":
+                child1 = QTreeWidgetItem(self.mysql_tree)
+            else:
+                child1 = QTreeWidgetItem(self.schema_tree)
+
             child1.setText(0, schema_name)
             child1.setText(1, str(schema_id))
             self.left_tree.setCurrentItem(child1)

@@ -8,27 +8,29 @@
 
 from sqlite3 import *
 import re
+from driver import *
 from comm import SQLITE3_DB_NAME
 
 
-class MySqlite3(object):
+class MySqlite3(Driver):
     """
     sqlite3 driver
     """
     conn = None
 
     def __init__(self, filename=None):
+        super().__init__(COMMON_SQL_REPLACE_MAP)
         if filename is None:
             self.filename = SQLITE3_DB_NAME
         else:
             self.filename = filename
-
-    def openDb(self):
         try:
             self.conn = connect(self.filename)
+            self.cur = self.conn.cursor()
+            self.login_info = '连接成功.'
+            self.schema_version = "版本：{0}".format(sqlite_version)
         except Exception as e:
-            # todo: 弹框提示打开本地数据库失败
-            print (e)
+            self.login_info = "连接失败=>{0}".format(e)
 
     def isOpen(self):
         if self.conn is not None:
@@ -36,65 +38,116 @@ class MySqlite3(object):
         else:
             return False
 
-    def exec_script(self, sqlList):
+    def execScript(self, sqlList):
         """
         执行sql脚本
         :param sqlList: sql字符串列表
         :return:
         """
+        assert (sqlList,list)
         sql = ''
         REMOVE_INFO_PATTERN = re.compile('^(--|\s*$)', re.I)
-        # try:
-        #     handle = open(sql_script, 'r')
-        #     filelines = handle.readlines()
-        #     for line in filelines:
-        #         if not REMOVE_INFO_PATTERN.match(line):  # 去注释,去空行,去提示信息
-        #             sql += line  # 替换字符
-        #     handle.close()
-        # except Exception as e:
-        #     print (e)
-        # print (sql)
         for s in sqlList:
             if not REMOVE_INFO_PATTERN.match(s):  # 去注释,去空行,去提示信息
                 sql += s                          # 替换字符
         self.conn.executescript(sql)
         self.commit()
 
-
-    def exec_statement(self, sql_statement):
+    def executeDDLFile(self, filename, info=None, error=None):
         """
-        执行insert,update,delete操作
-        :param sql_statement: sql语句
+        执行ddl脚本
+        :param filename: 脚本路径名称
+        :param info:
+        :param error:
         :return:
         """
+        iInfo = ""
+        iType = NormalMessage
+        eInfo = ""
+        eSql = ""
+        sqlLines = ""
         try:
-            self.conn.execute(sql_statement)
-            self.conn.commit()
+            handle = open(filename, 'r', encoding='UTF-8')
+            fileLines = handle.readlines()
+            handle.close()
+        except Exception as e:
+            emitMessage(info, str(e))
             return
-        except Exception as e:
-            return str(e)
 
-    def exec_select(self, sql_select):
-        """
-        执行select操作
-        :param sql_select:
-        :return:
-        """
-        try:
-            cursor = self.conn.execute(sql_select)
-            records = cursor.fetchall()
-        except Exception as e:
-            return str(e)
-        return records
+        for line in fileLines:
+            if not REMOVE_INFO_PATTERN.match(line):  # 去注释,去空行,去提示信息
+                sqlLines += self.trans(line)  # 替换字符
+        # 去掉多行注释
+        newSqlLines = re.sub(REMOVE_MULTILINE_COMMENT, '', sqlLines)
 
-    def commit(self):
-        if self.isOpen():
-            self.conn.commit()
-        else:
-            print ('db not open')
+        if JUDGE_PROCED_FUNC_PATTERN.search(newSqlLines):  # 过程或者函数
+            sqlCommands = SPLIT_PROCED_FUNC_PATTERN.split(newSqlLines)
+        else:  # 其他sql
+            sqlCommands = SPLIT_NORMAL_PATTERN.split(newSqlLines)
 
-    def closedb(self):
-        if self.isOpen():
-            self.conn.close()
-        else:
-            print ('db not open')
+        for oneSql in sqlCommands:
+            oneSqlType, oneSqlName, oneSqlSubtype, sql = parseDDL(oneSql)
+            if oneSqlType == 'C':
+                try:
+                    self.commit()
+                    iInfo = '提交成功'
+                    iType = NormalMessage
+                except Exception as e:
+                    iInfo = '提交失败%s' % (str(e))
+                    iType = ErrorMessage
+                    eInfo = str(e)
+                    eSql = 'commit'
+            elif oneSqlType == 'N':
+                if JUDGE_CREATE_PROC_PATTERN.match(sql) or JUDGE_CREATE_FUNC_PATTERN.match(sql):
+                    exec_sql = sql
+                else:
+                    if sql.endswith(';'):
+                        exec_sql = sql.partition(';')[0]
+                    else:
+                        exec_sql = sql
+                try:
+                    self.cur.execute(exec_sql)
+                    iInfo = "{0}{1}成功".format(oneSqlSubtype, oneSqlName)
+                    iType = NormalMessage
+                except Exception as e:
+                    iInfo = "{0}{1}失败=>{2}".format(oneSqlSubtype, oneSqlName, str(e))
+                    iType = ErrorMessage
+                    eInfo = str(e)
+                    eSql = sql
+            else:
+                pass
+
+            emitMessage(info, (iType, iInfo))
+            emitMessage(error, (eInfo, eSql))
+
+    def dropClassData(self, classMap=MYSQL_CLASS_TYPE_MAP, info=None, error=None):
+        # 根据drop顺序排序
+        order_class_type_map = sorted(classMap.items(), key=lambda x: x[1][3])
+        self.chooseDB()
+        self.cur.execute("""SET FOREIGN_KEY_CHECKS = 0 """)
+        for classType in order_class_type_map:
+            d_type = classType[0]
+            d_type_ch = classType[1][0]
+            query_sql = classType[1][1].format(self.dbName)
+            drop_sql = classType[1][2]
+
+            self.cur.execute(query_sql)
+            object_list = self.cur.fetchall()
+            for index, name in enumerate(object_list):
+                eInfo = ""
+                eSql = ""
+                object_name = name[0]
+                format_drop_sql = drop_sql.format(object_name)
+                drop_sql_type, drop_sql_name, drop_sql_sub_type, drop_strip_sql = parseDDL(format_drop_sql)
+                try:
+                    self.cur.execute(drop_strip_sql)
+                    iInfo = '%s%s成功' % (drop_sql_sub_type, drop_sql_name)
+                    iType = NormalMessage
+                except Exception as e:
+                    iInfo = '%s%s失败=>%s' % (drop_sql_sub_type, drop_sql_name, str(e))
+                    iType = ErrorMessage
+                    eInfo = str(e)
+                    eSql = drop_strip_sql
+
+                emitMessage(info, (iType, iInfo))
+                emitMessage(error, (eInfo, eSql))

@@ -7,5 +7,5 @@ __pycache__
 *.spec
 source.db
 client/*
-logs/*
+*.log
 

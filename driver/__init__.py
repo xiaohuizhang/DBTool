@@ -42,6 +42,7 @@ class Driver:
         """
         self.trans = make_xlat(trans)
         self.login_info = ""
+        self.selectDBInfo = ""
         self.schema_version = ""
         self.conn = None
         self.cur = None
@@ -64,8 +65,9 @@ class Driver:
                 return self.cur.fetchmany(recordCount)
         except Exception as e:
             emitMessage(trigger, (ErrorMessage, str(e)))
+            return str(e)
 
-    def executeInsert(self, statement, trigger=None):
+    def executeDML(self, statement, trigger=None):
         """
         插入数据
         :param statement: 插入sql
@@ -74,8 +76,10 @@ class Driver:
         """
         try:
             self.cur.execute(statement)
+            self.commit()
         except Exception as e:
             emitMessage(trigger, (ErrorMessage, str(e)))
+            return str(e)
 
     def executeDDLFile(self, filename, info=None, error=None):
         pass

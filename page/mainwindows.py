@@ -151,11 +151,11 @@ class upgradeDialog(QDialog):
         patch_dir = os.path.join(self.psdir, 'patch', self.patchname)
         handle = None
         try:
-            handle = open(patch_dir, 'r')
+            handle = open(patch_dir, 'r', encoding="utf8")
             fileLines = handle.read()
             self.sql_area.append(fileLines)
         except Exception as e:
-            self.logs.emit(str(e))
+            myLog.error(e)
             return
         finally:
             handle.close()
@@ -195,7 +195,6 @@ class uimain(QWidget):
     def __init__(self, flags, *args, **kwargs):
         super().__init__(flags, *args, **kwargs)
         self.mysqlite = MySqlite3()
-        self.mysqlite.openDb()
         if self.mysqlite.isOpen():
             self.setupUI()
         else:
@@ -275,22 +274,7 @@ class uimain(QWidget):
         self.conn_label.setObjectName("connLabel")
         self.conn_value = QComboBox()
         self.conn_value.setView(QListView())
-        connections = getConnRecords(self.mysqlite)
-        for index, conn in enumerate(connections):
-            datasource = getDatasourceRecords(self.mysqlite, conn["did"])
-            if datasource[0]["driver"] == "oracle":
-                icon = QIcon(":/resource/oracle.png")
-            elif datasource[0]["driver"] == "mysql":
-                icon = QIcon(":/resource/mysql.png")
-            elif datasource[0]["driver"] == "postgresql":
-                icon = QIcon(":/resource/postgresql.png")
-            elif datasource[0]["driver"] == "sqlite":
-                icon = QIcon(":/resource/sqlite.png")
-            else:
-                icon = QIcon(":/resource/database_item.jpg")
-            self.conn_value.addItem(icon, conn["name"], conn["id"])
-            if index == 0:
-                self.conn_value.setCurrentText(conn["name"])
+        self.setConnValue()
         # 连接按钮
         self.conn_button = QPushButton('连 接')
         self.conn_button.setToolTip('连接数据库')
@@ -423,6 +407,24 @@ class uimain(QWidget):
             self._handleCloseSource()
             self.close_action.setEnabled(False)
             self.reconn_action.setEnabled(True)
+
+    def setConnValue(self):
+        connections = getConnRecords(self.mysqlite)
+        for index, conn in enumerate(connections):
+            datasource = getDatasourceRecords(self.mysqlite, conn["did"])
+            if datasource[0]["driver"] == "oracle":
+                icon = QIcon(":/resource/oracle.png")
+            elif datasource[0]["driver"] == "mysql":
+                icon = QIcon(":/resource/mysql.png")
+            elif datasource[0]["driver"] == "postgresql":
+                icon = QIcon(":/resource/postgresql.png")
+            elif datasource[0]["driver"] == "sqlite":
+                icon = QIcon(":/resource/sqlite.png")
+            else:
+                icon = QIcon(":/resource/database_item.jpg")
+            self.conn_value.addItem(icon, conn["name"], conn["id"])
+            if index == 0:
+                self.conn_value.setCurrentText(conn["name"])
 
     def _handleConnSchema(self):
         """
@@ -600,10 +602,7 @@ class uimain(QWidget):
         # """
         self.setEnabled(True)
         self.conn_value.clear()
-        for index, conn in enumerate(getConnRecords(self.mysqlite)):
-            self.conn_value.addItem(conn["name"], conn["id"])
-            if index == 0:
-                self.conn_value.setCurrentText(conn["name"])
+        self.setConnValue()
 
     def _handleUpdateLog(self, type, msg):
         printTime = "[{0}]".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))

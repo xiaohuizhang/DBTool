@@ -38,9 +38,19 @@ class MyMySql(Driver):
         except Exception as e:
             self.login_info = "连接失败=>{0}".format(e)
 
+        try:
+            self.chooseDB()
+        except Exception as e:
+            self.selectDBInfo = "切换数据库{0}失败: {1}".format(self.dbName,e)
+            self.conn = None
+            self.cur = None
+
     def chooseDB(self):
-        self.conn.select_db(self.dbName)
-        self.conn.show_warnings()
+        try:
+            self.conn.select_db(self.dbName)
+        except Exception as e:
+            raise e
+
 
     def executeDDLFile(self, filename, info=None, error=None):
         """
@@ -73,7 +83,7 @@ class MyMySql(Driver):
             sqlCommands = SPLIT_PROCED_FUNC_PATTERN.split(newSqlLines)
         else:  # 其他sql
             sqlCommands = SPLIT_NORMAL_PATTERN.split(newSqlLines)
-        self.chooseDB()
+        # self.chooseDB(info)
         for oneSql in sqlCommands:
             oneSqlType, oneSqlName, oneSqlSubtype, sql = parseDDL(oneSql)
             if oneSqlType == 'E':  # EXEC调用
@@ -133,7 +143,7 @@ class MyMySql(Driver):
         """
         # 根据drop顺序排序
         order_class_type_map = sorted(classMap.items(), key=lambda x: x[1][3])
-        self.chooseDB()
+        # self.chooseDB(info)
         self.cur.execute("""SET FOREIGN_KEY_CHECKS = 0 """)
         for classType in order_class_type_map:
             d_type = classType[0]
@@ -147,28 +157,18 @@ class MyMySql(Driver):
                 eInfo = ""
                 eSql = ""
                 object_name = name[0]
-                if d_type != 'JOB':
-                    format_drop_sql = drop_sql.format(object_name)
-                    drop_sql_type, drop_sql_name, drop_sql_sub_type, drop_strip_sql = parseDDL(format_drop_sql)
-                    try:
-                        self.cur.execute(drop_strip_sql)
-                        iInfo = '%s%s成功' % (drop_sql_sub_type, drop_sql_name)
-                        iType = NormalMessage
-                    except Exception as e:
-                        iInfo = '%s%s失败=>%s' % (drop_sql_sub_type, drop_sql_name, str(e))
-                        iType = ErrorMessage
-                        eInfo = str(e)
-                        eSql = drop_strip_sql
-                else:
-                    try:
-                        self.cur.callproc('sys.dbms_scheduler.drop_job', [object_name])
-                        iInfo = "删除{0}个{1}:{2}成功".format(index, d_type_ch, object_name)
-                        iType = NormalMessage
-                    except Exception as e:
-                        iInfo = "删除{0}个{1}:{2}失败=>{3}".format(index, d_type_ch, object_name, str(e))
-                        iType = ErrorMessage
-                        eInfo = str(e)
-                        eSql = 'sys.dbms_scheduler.drop_job ' + object_name
+
+                format_drop_sql = drop_sql.format(object_name)
+                drop_sql_type, drop_sql_name, drop_sql_sub_type, drop_strip_sql = parseDDL(format_drop_sql)
+                try:
+                    self.cur.execute(drop_strip_sql)
+                    iInfo = '%s%s成功' % (drop_sql_sub_type, drop_sql_name)
+                    iType = NormalMessage
+                except Exception as e:
+                    iInfo = '%s%s失败=>%s' % (drop_sql_sub_type, drop_sql_name, str(e))
+                    iType = ErrorMessage
+                    eInfo = str(e)
+                    eSql = drop_strip_sql
 
                 emitMessage(info, (iType,iInfo))
                 emitMessage(error, (eInfo, eSql))

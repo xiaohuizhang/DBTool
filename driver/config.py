@@ -167,3 +167,20 @@ MYSQL_CLASS_TYPE_MAP = {
         """DROP EVENT {0}""",
         6)
 }
+
+######################
+#########sqlite3######
+######################
+
+SQLITE3_CLASS_TYPE_MAP = {
+    'TABLE': (
+        "表",
+        """select name from sqlite_master where type="table";""",
+        """drop table IF EXISTS {0} cascade""",
+        1),
+    'INDEX': (
+        "索引",
+        """select name from sqlite_master where type="index";""",
+        """drop index  IF EXISTS {0}""",
+        2),
+}

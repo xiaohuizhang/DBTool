@@ -15,25 +15,36 @@ from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QSize,QFile
 from PyQt5.QtGui import QIcon
 from driver.Sqlite3Driver import MySqlite3
-from comm import SQLITE3_DB_NAME,INIT_DB_SQL,LOG_DIR
+from comm import SQLITE3_DB_NAME, INIT_DB_SQL, LOG_DIR, getVersion,insertVersion,updateVersion,getAllTables
 from page.mainwindows import uimain
 from page.myWindow import FramelessWindow
 from resource import *
-from comm import DBMS_Version
+from comm import DBMSVersion
 
-
-
-def initSqLite(cDir,sqls):
+def initAndCheckDatabase():
     """
-    初始化数据库
+    初始化并校验数据库
     :return:
     """
-    dbDir = join(cDir,SQLITE3_DB_NAME)
-    if not isfile(dbDir):
-        myInit = MySqlite3(dbDir)
-        myInit.openDb()
-        myInit.exec_script(sqls)
-        myInit.closedb()
+    dbDir = join(current_dir, SQLITE3_DB_NAME)
+    ms = MySqlite3(dbDir)
+    tables = getAllTables(ms)
+    if "projects" not in tables or "connections" not in tables or "datasources" not in tables or "version" not in tables:
+        log.warning("table not exist, will init.")
+        ms.execScript(INIT_DB_SQL)
+        insertVersion(ms, DBMSVersion)
+    else:
+        log.info("current version is {0}".format(DBMSVersion))
+        version = getVersion(ms)
+        if isinstance(version, str):
+            log.error(version)
+        else:
+            if len(version) == 0:
+                insertVersion(ms, DBMSVersion)
+            else:
+                updateVersion(ms, DBMSVersion)
+    ms.close()
+
 
 def initlog():
     """
@@ -41,32 +52,36 @@ def initlog():
     :return:
     """
     formatter = logging.Formatter('[%(asctime)s] - %(filename)s [Line:%(lineno)d] - [%(levelname)s] - %(message)s')
-    myapp_hander = logging.handlers.RotatingFileHandler(LOG_DIR, mode='w',maxBytes=1024000, backupCount=5)
-    myapp_hander.setFormatter(formatter)
+    myAppHander = logging.handlers.RotatingFileHandler(LOG_DIR, mode='w',maxBytes=1024000, backupCount=5)
+    myAppHander.setFormatter(formatter)
     logging.basicConfig()
     myApp = logging.getLogger('dbtool')
     myApp.setLevel(logging.INFO)
-    myApp.addHandler(myapp_hander)
+    myApp.addHandler(myAppHander)
 
 if __name__ == "__main__":
+    # 初始化日志
+    initlog()
+    log = logging.getLogger('dbtool')
+    log.info("init log...")
+    # 获取当前路径
     try:
         current_dir = dirname(realpath(__file__))
     except NameError:
         current_dir = dirname(abspath(sys.argv[0]))
-    initlog()
     # 初始化数据库
-    initSqLite(current_dir,INIT_DB_SQL)
+    log.info("init and check database...")
+    initAndCheckDatabase()
     # 加载qss文件
+    log.info("Loading QSS...")
     file = QFile(":/resource/pre.qss")
     file.open(QFile.ReadOnly)
     styleSheet = file.readAll()
     styleSheet = str(styleSheet, encoding='utf8')
     app = QApplication(sys.argv)
     app.setStyleSheet(styleSheet)
-    # ui = uimain()
-    # ui.show()
     mainWnd = FramelessWindow()
-    mainWnd.setWindowTitle('DataBase Manager ' + DBMS_Version)
+    mainWnd.setWindowTitle('DataBase Manager ' + DBMSVersion)
     mainWnd.setWindowIcon(QIcon(':/resource/database.png'))
     mainWnd.resize(QSize(1250, 780))
     mainWnd.setWidget(uimain(mainWnd))  # 把自己的窗口添加进来
