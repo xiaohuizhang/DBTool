@@ -81,6 +81,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyleSheet(styleSheet)
     mainWnd = FramelessWindow()
+    mainWnd.titleBar.setHeight(50)
     mainWnd.setWindowTitle('DataBase Manager ' + DBMSVersion)
     mainWnd.setWindowIcon(QIcon(':/resource/database.png'))
     mainWnd.resize(QSize(1250, 780))

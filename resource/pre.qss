@@ -1,20 +1,24 @@
 /**********自定义标题栏****************/
 /*标题栏*/
 TitleBar {
-     background-color: rgb(232, 241, 252);
+     background-color: Firebrick;
+     color:White;
 }
 /*最小化最大化关闭按钮通用默认背景*/
 #buttonMinimum,#buttonMaximum,#buttonClose {
      border: none;
-     background-color: rgb(232, 241, 252);
+     background-color: Firebrick;
+     color:#b7b7b7;
 }
 /*悬停*/
 #buttonMinimum:hover,#buttonMaximum:hover {
-     background-color: rgb(232, 241, 252);
+     background-color: Firebrick;
      color: white;
+     border: none;
 }
 #buttonClose:hover {
-     color: white;
+    border: none;
+    color: white;
 }
 /*鼠标按下不放*/
 #buttonMinimum:pressed,#buttonMaximum:pressed {
@@ -25,13 +29,15 @@ TitleBar {
      background-color: Firebrick;
 }
 
-/**********主界面样式**********/
-/**********工具栏**********/
-QToolbar {
-        background: rgb(187, 212, 238);
-        /*border: 1px solid rgb(111, 156, 207);*/
+#title {
+    color:white;
+    font-size: 14px;
+    font-weight: bold;
+    font-family: FangSong;
 }
 
+/**********主界面样式**********/
+/**********工具栏**********/
 /**********菜单**********/
 QMenu {
         border: 1px solid rgb(111, 156, 207);
@@ -484,7 +490,6 @@ QFrame#scriptListFrame {
     border-left: 1px solid #B0B7C6;
     border-right: 1px solid #B0B7C6;
     border-bottom: 1px solid #B0B7C6;
-    background-color: #DC143C;
 }
 
 QTextBrowser#infoFrame {

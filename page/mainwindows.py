@@ -36,11 +36,6 @@ class MyWidget(QWidget):
         :param event: close()触发的事件
         :return: None
         """
-        # reply = QMessageBox.question(self,'本程序',"是否要退出程序？",QMessageBox.Yes | QMessageBox.No,QMessageBox.No)
-        # if reply == QMessageBox.Yes:
-        #     event.accept()
-        # else:
-        #     event.ignore()
         self.close_signal.emit()
 
 
@@ -194,6 +189,7 @@ class uimain(QWidget):
 
     def __init__(self, flags, *args, **kwargs):
         super().__init__(flags, *args, **kwargs)
+        self.setStyleSheet("background-color: White;")
         self.mysqlite = MySqlite3()
         if self.mysqlite.isOpen():
             self.setupUI()
@@ -204,6 +200,7 @@ class uimain(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
+
 
         self.toolbar = QToolBar()
         self.connFrame = QFrame()
@@ -309,18 +306,18 @@ class uimain(QWidget):
         top_hbox.addWidget(self.clearlog_button)
 
     def setScriptFrame(self):
-        self.scriptFrame.setFixedHeight(20)
+        self.scriptFrame.setFixedHeight(30)
         self.scriptFrame.setObjectName("scriptFrame")
 
         script_label = QLabel()
-        script_label.setAlignment(Qt.AlignTop)
+        script_label.setAlignment(Qt.AlignVCenter)
         script_label.setMargin(0)
         script_label.setText('脚本路径:')
         self.script_value = QLabel()
         self.script_value.setObjectName("scriptValue")
         self.script_value.setFrameShape(QFrame.NoFrame)
         self.script_value.setFrameShadow(QFrame.Sunken)
-        self.script_value.setAlignment(Qt.AlignLeft)
+        self.script_value.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
 
         hbox = QHBoxLayout(self.scriptFrame)
         hbox.setContentsMargins(1, 1, 1, 1)

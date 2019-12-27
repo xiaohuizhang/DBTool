@@ -48,6 +48,7 @@ class TitleBar(QWidget):
          # 窗口标题
          self.titleLabel = QLabel(self)
          self.titleLabel.setMargin(2)
+         self.titleLabel.setObjectName("title")
          layout.addWidget(self.titleLabel)
          # 中间伸缩条
          layout.addSpacerItem(QSpacerItem(
